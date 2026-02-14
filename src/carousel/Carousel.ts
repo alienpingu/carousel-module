@@ -1,41 +1,98 @@
-import { CarouselOptions, defaultCarouselOptions } from './CarouselOptions';
+/**
+ * Carousel - A production-ready carousel component with infinite scrolling and momentum-based interactions.
+ * 
+ * Features:
+ * - Infinite loop scrolling
+ * - Free scroll (dragFree mode)
+ * - Mouse drag and touch swipe support with momentum
+ * - Keyboard navigation
+ * - Mouse wheel scrolling with horizontal support
+ * - Accessibility support (ARIA labels, keyboard navigation, focus management)
+ * - Customizable slides per view
+ * - Responsive design with ResizeObserver
+ * 
+ * @module CarouselModule
+ */
 
+import { CarouselOptions, defaultCarouselOptions } from './CarouselOptions';
+import { DragHandler } from './DragHandler';
+import { InfiniteScroll } from './InfiniteScroll';
+
+/** Event types emitted by the carousel */
 export type CarouselEventType = 'select' | 'scroll';
 
+/** Event object passed to event callbacks */
 export interface CarouselEvent {
   type: CarouselEventType;
   index: number;
 }
 
 /**
- * Custom Carousel class replicating Embla Carousel functionality
+ * Carousel class provides a fully-featured carousel component.
+ * 
+ * Usage:
+ * ```typescript
+ * import { Carousel } from './carousel';
+ * 
+ * const container = document.getElementById('carousel');
+ * const carousel = new Carousel(container, {
+ *   slidesPerView: 1,
+ *   loop: true,
+ *   dragFree: true,
+ *   duration: 300,
+ *   gap: 20
+ * });
+ * 
+ * carousel.on('select', (event) => {
+ *   console.log('Selected slide:', event.index);
+ * });
+ * ```
  */
 export class Carousel {
+  /** The container element */
   private container: HTMLElement;
+  
+  /** The scrollable track element */
   private track: HTMLElement;
+  
+  /** Original slides extracted from container */
   private slides: HTMLElement[];
+  
+  /** Configuration options */
   private options: CarouselOptions;
+  
+  /** Animation frame for scroll animations */
   private animationFrame: number | null = null;
-  private isDragging = false;
-  private startX = 0;
-  private scrollStart = 0;
+  
+  /** Event listeners storage */
   private listeners: Map<string, Set<(event: CarouselEvent) => void>> = new Map();
+  
+  /** ResizeObserver for responsive updates */
   private resizeObserver: ResizeObserver | null = null;
+  
+  /** Wheel scroll state */
   private wheelVelocity = 0;
   private wheelLastTime = 0;
   private wheelAnimationFrame: number | null = null;
   private wheelDeceleration = 0.95;
+  
+  /** Cached dimensions */
   private slideWidth = 0;
   private originalCount = 0;
   private cloneCount = 0;
   
-  // Drag momentum
-  private dragVelocity = 0;
-  private dragLastX = 0;
-  private dragLastTime = 0;
-  private dragMomentumAnimation: number | null = null;
-  private dragDeceleration = 0.92;
+  /** Drag handler instance */
+  private dragHandler: DragHandler | null = null;
+  
+  /** Infinite scroll handler instance */
+  private infiniteScroll: InfiniteScroll | null = null;
 
+  /**
+   * Creates a new Carousel instance.
+   * 
+   * @param container - The HTMLElement to initialize the carousel in
+   * @param options - Optional configuration options
+   */
   constructor(container: HTMLElement, options: Partial<CarouselOptions> = {}) {
     this.container = container;
     this.options = { ...defaultCarouselOptions, ...options };
@@ -57,7 +114,8 @@ export class Carousel {
   }
 
   /**
-   * Create the scrollable track element
+   * Creates and configures the scrollable track element.
+   * @returns The configured track element
    */
   private createTrack(): HTMLElement {
     const track = document.createElement('div');
@@ -73,7 +131,8 @@ export class Carousel {
   }
 
   /**
-   * Extract slides from the container
+   * Extracts slides from the container element.
+   * @returns Array of slide elements
    */
   private extractSlides(): HTMLElement[] {
     const slides = Array.from(this.container.children).filter(
@@ -83,7 +142,7 @@ export class Carousel {
   }
 
   /**
-   * Setup the container element
+   * Sets up the container element styles and structure
    */
   private setupContainer(): void {
     this.container.style.cssText = `
@@ -94,13 +153,13 @@ export class Carousel {
   }
 
   /**
-   * Setup the track with slides
+   * Sets up the track with original slides and clones for infinite scroll
    */
   private setupTrack(): void {
     this.track.innerHTML = '';
     
     if (this.options.loop && this.slides.length > 0) {
-      // Add clones for infinite scroll
+      // Add clones at start and end for infinite scroll
       const clonesStart = this.slides.map(slide => this.cloneSlide(slide));
       const clonesEnd = this.slides.map(slide => this.cloneSlide(slide));
       
@@ -113,7 +172,9 @@ export class Carousel {
   }
 
   /**
-   * Clone a slide element
+   * Creates a clone of a slide element for infinite scroll.
+   * @param slide - The slide to clone
+   * @returns A cloned HTMLElement
    */
   private cloneSlide(slide: HTMLElement): HTMLElement {
     const clone = slide.cloneNode(true) as HTMLElement;
@@ -122,7 +183,7 @@ export class Carousel {
   }
 
   /**
-   * Setup slide styles
+   * Configures styles for all slides including clones
    */
   private setupSlides(): void {
     const slides = this.getAllSlides();
@@ -137,7 +198,7 @@ export class Carousel {
         transition: transform 0.3s ease;
       `;
       
-      // Hover effect
+      // Add hover scale effect
       slide.addEventListener('mouseenter', () => {
         slide.style.transform = 'scale(1.02)';
       });
@@ -148,7 +209,8 @@ export class Carousel {
   }
 
   /**
-   * Calculate slide width based on slidesPerView
+   * Calculates the width of each slide based on container size and slidesPerView.
+   * @returns The calculated slide width in pixels
    */
   private calculateSlideWidth(): number {
     const containerWidth = this.container.offsetWidth;
@@ -158,7 +220,8 @@ export class Carousel {
   }
 
   /**
-   * Get all slides including clones
+   * Gets all slides including clones from the track.
+   * @returns Array of all slide elements
    */
   private getAllSlides(): HTMLElement[] {
     return Array.from(this.track.children).filter(
@@ -167,18 +230,38 @@ export class Carousel {
   }
 
   /**
-   * Setup event listeners for mouse/touch interactions
+   * Sets up event listeners for all interactions
    */
   private setupEventListeners(): void {
-    // Mouse events
-    this.track.addEventListener('mousedown', this.handleDragStart.bind(this));
-    window.addEventListener('mousemove', this.handleDragMove.bind(this));
-    window.addEventListener('mouseup', this.handleDragEnd.bind(this));
-
-    // Touch events
-    this.track.addEventListener('touchstart', this.handleDragStart.bind(this), { passive: true });
-    this.track.addEventListener('touchmove', this.handleDragMove.bind(this), { passive: false });
-    this.track.addEventListener('touchend', this.handleDragEnd.bind(this));
+    // Initialize drag handler
+    if (this.options.dragFree) {
+      this.dragHandler = new DragHandler(
+        this.track,
+        (index) => this.emit({ type: 'scroll', index }),
+        { enabled: true },
+        () => this.track.scrollLeft,
+        (pos) => { this.track.scrollLeft = pos; },
+        () => this.getSelectedIndex()
+      );
+      
+      // Initialize infinite scroll
+      this.infiniteScroll = new InfiniteScroll(
+        () => this.track.scrollLeft,
+        (pos) => { this.track.scrollLeft = pos; },
+        {
+          slideWidth: this.slideWidth,
+          gap: this.options.gap,
+          originalCount: this.originalCount,
+          cloneCount: this.cloneCount,
+        },
+        { enabled: this.options.loop }
+      );
+      
+      // Connect drag handler to infinite scroll
+      this.dragHandler.setLoopCallback(() => {
+        this.infiniteScroll?.handleInfiniteScroll();
+      });
+    }
 
     // Wheel scrolling
     this.track.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
@@ -188,171 +271,46 @@ export class Carousel {
   }
 
   /**
-   * Handle drag start
-   */
-  private handleDragStart(event: MouseEvent | TouchEvent): void {
-    if (!this.options.dragFree) return;
-    
-    // Cancel any existing momentum animation
-    if (this.dragMomentumAnimation) {
-      cancelAnimationFrame(this.dragMomentumAnimation);
-      this.dragMomentumAnimation = null;
-    }
-    
-    this.isDragging = true;
-    this.startX = 'touches' in event ? event.touches[0].clientX : event.clientX;
-    this.scrollStart = this.track.scrollLeft;
-    this.dragLastX = this.startX;
-    this.dragLastTime = performance.now();
-    this.dragVelocity = 0;
-    this.track.style.cursor = 'grabbing';
-    this.track.style.scrollBehavior = 'auto';
-  }
-
-  /**
-   * Handle drag move
-   */
-  private handleDragMove(event: MouseEvent | TouchEvent): void {
-    if (!this.isDragging) return;
-    if ('touches' in event && event.touches.length === 0) return;
-    
-    event.preventDefault();
-    
-    const now = performance.now();
-    const x = 'touches' in event ? event.touches[0].clientX : event.clientX;
-    const timeDelta = now - this.dragLastTime;
-    
-    // Calculate velocity (pixels per ms)
-    if (timeDelta > 0) {
-      const deltaX = this.dragLastX - x;
-      this.dragVelocity = deltaX / timeDelta * 16; // Normalize to ~60fps
-    }
-    
-    this.dragLastX = x;
-    this.dragLastTime = now;
-    
-    const diff = this.startX - x;
-    const newScrollLeft = this.scrollStart + diff;
-    
-    this.track.scrollLeft = newScrollLeft;
-    
-    // Handle infinite scroll during drag
-    if (this.options.loop) {
-      this.handleInfiniteScroll();
-    }
-    
-    this.emit({ type: 'scroll', index: this.getSelectedIndex() });
-  }
-
-  /**
-   * Handle drag end - with momentum
-   */
-  private handleDragEnd(): void {
-    if (!this.isDragging) return;
-    
-    this.isDragging = false;
-    this.track.style.cursor = 'grab';
-    
-    // Start momentum scrolling if velocity is significant
-    if (Math.abs(this.dragVelocity) > 0.5) {
-      this.startDragMomentum();
-    } else {
-      this.track.style.scrollBehavior = 'smooth';
-      this.emit({ type: 'select', index: this.getSelectedIndex() });
-    }
-    
-    if (this.options.loop) {
-      this.handleInfiniteScroll();
-    }
-  }
-
-  /**
-   * Start momentum animation after drag release
-   */
-  private startDragMomentum(): void {
-    if (this.dragMomentumAnimation) {
-      cancelAnimationFrame(this.dragMomentumAnimation);
-    }
-    
-    const animate = (): void => {
-      // Apply deceleration
-      this.dragVelocity *= this.dragDeceleration;
-      
-      // Stop if velocity is too low
-      if (Math.abs(this.dragVelocity) < 0.5) {
-        this.dragMomentumAnimation = null;
-        this.track.style.scrollBehavior = 'smooth';
-        this.emit({ type: 'select', index: this.getSelectedIndex() });
-        return;
-      }
-      
-      // Apply momentum
-      const newScrollLeft = this.track.scrollLeft + this.dragVelocity;
-      this.track.scrollLeft = newScrollLeft;
-      
-      // Handle infinite scroll
-      if (this.options.loop) {
-        this.handleInfiniteScroll();
-      }
-      
-      // Emit scroll event
-      this.emit({ type: 'scroll', index: this.getSelectedIndex() });
-      
-      // Continue animation
-      this.dragMomentumAnimation = requestAnimationFrame(animate);
-    };
-    
-    this.dragMomentumAnimation = requestAnimationFrame(animate);
-  }
-
-  /**
-   * Handle wheel scrolling with horizontal support
+   * Handles wheel scrolling with horizontal support and momentum.
+   * @param event - The wheel event
    */
   private handleWheel(event: WheelEvent): void {
-    // Always prevent default to stop native scroll
     event.preventDefault();
     
     const now = performance.now();
     const timeDelta = now - this.wheelLastTime;
     this.wheelLastTime = now;
     
-    // Get horizontal and vertical delta, prioritize horizontal
+    // Get horizontal delta first, fallback to vertical
     let delta = event.deltaX;
-    
-    // If no horizontal scroll, use vertical
     if (Math.abs(delta) < 1) {
       delta = event.deltaY;
     }
     
     // Calculate velocity with momentum
     if (timeDelta < 50) {
-      // Quick wheel movement - build velocity
       this.wheelVelocity = delta;
     } else {
-      // Slow wheel movement - reset velocity
       this.wheelVelocity = delta * 0.5;
     }
     
-    // Apply scroll immediately
-    const newScrollLeft = this.track.scrollLeft + this.wheelVelocity;
-    this.track.scrollLeft = newScrollLeft;
+    // Apply scroll
+    this.track.scrollLeft += this.wheelVelocity;
     
     // Handle infinite scroll
-    if (this.options.loop) {
-      this.handleInfiniteScroll();
-    }
+    this.infiniteScroll?.handleInfiniteScroll();
     
     // Emit scroll event
     this.emit({ type: 'scroll', index: this.getSelectedIndex() });
     
-    // Start momentum animation if velocity is significant
+    // Start momentum if velocity is significant
     if (Math.abs(this.wheelVelocity) > 1) {
       this.startWheelMomentum();
     }
   }
 
   /**
-   * Start wheel momentum animation for smooth scrolling
+   * Starts wheel momentum animation for smooth scrolling.
    */
   private startWheelMomentum(): void {
     if (this.wheelAnimationFrame) {
@@ -360,26 +318,17 @@ export class Carousel {
     }
     
     const animate = (): void => {
-      // Apply deceleration
       this.wheelVelocity *= this.wheelDeceleration;
       
-      // Stop if velocity is too low
       if (Math.abs(this.wheelVelocity) < 0.5) {
         this.wheelAnimationFrame = null;
         this.emit({ type: 'select', index: this.getSelectedIndex() });
         return;
       }
       
-      // Apply momentum
-      const newScrollLeft = this.track.scrollLeft + this.wheelVelocity;
-      this.track.scrollLeft = newScrollLeft;
+      this.track.scrollLeft += this.wheelVelocity;
+      this.infiniteScroll?.handleInfiniteScroll();
       
-      // Handle infinite scroll
-      if (this.options.loop) {
-        this.handleInfiniteScroll();
-      }
-      
-      // Continue animation
       this.wheelAnimationFrame = requestAnimationFrame(animate);
     };
     
@@ -387,7 +336,8 @@ export class Carousel {
   }
 
   /**
-   * Handle keyboard navigation
+   * Handles keyboard navigation.
+   * @param event - The keyboard event
    */
   private handleKeyDown(event: KeyboardEvent): void {
     const slideWidth = this.calculateSlideWidth() + this.options.gap;
@@ -413,38 +363,7 @@ export class Carousel {
   }
 
   /**
-   * Handle infinite scroll logic
-   */
-  private handleInfiniteScroll(): void {
-    // Use cached values if available
-    const slideWidthVal = this.slideWidth > 0 ? this.slideWidth : this.calculateSlideWidth();
-    const step = slideWidthVal + this.options.gap;
-    const totalSlides = this.originalCount + this.cloneCount * 2;
-    const totalWidth = totalSlides * step;
-    
-    const currentScroll = this.track.scrollLeft;
-    const cloneWidth = this.cloneCount * step;
-    
-    // If looping is enabled and we have clones
-    if (this.options.loop && this.originalCount > 0) {
-      // When scrolling past the start clones, jump to the end
-      if (currentScroll < cloneWidth - step) {
-        const offset = this.originalCount * step;
-        this.track.scrollLeft = currentScroll + offset;
-        return;
-      }
-      
-      // When scrolling past the end clones, jump to the start
-      if (currentScroll > totalWidth - cloneWidth + step) {
-        const offset = this.originalCount * step;
-        this.track.scrollLeft = currentScroll - offset;
-        return;
-      }
-    }
-  }
-
-  /**
-   * Setup accessibility attributes
+   * Sets up accessibility attributes for the carousel.
    */
   private setupAccessibility(): void {
     this.container.setAttribute('role', 'region');
@@ -461,7 +380,7 @@ export class Carousel {
   }
 
   /**
-   * Setup resize observer for responsive updates
+   * Sets up ResizeObserver for responsive dimension updates.
    */
   private setupResizeObserver(): void {
     this.resizeObserver = new ResizeObserver(() => {
@@ -471,20 +390,28 @@ export class Carousel {
   }
 
   /**
-   * Update dimensions on resize
+   * Updates slide dimensions on resize.
    */
   private updateDimensions(): void {
     const slideWidth = this.calculateSlideWidth();
+    this.slideWidth = slideWidth;
     const slides = this.getAllSlides();
     
     slides.forEach(slide => {
       slide.style.flex = `0 0 ${slideWidth}px`;
       slide.style.minWidth = `${slideWidth}px`;
     });
+    
+    // Update infinite scroll params
+    this.infiniteScroll?.updateParams({
+      slideWidth,
+      gap: this.options.gap,
+    });
   }
 
   /**
-   * Get the currently selected slide index
+   * Gets the index of the currently selected slide.
+   * @returns The selected slide index
    */
   public getSelectedIndex(): number {
     const slideWidth = this.calculateSlideWidth() + this.options.gap;
@@ -492,16 +419,16 @@ export class Carousel {
     const index = Math.round(scrollPosition / slideWidth);
     
     if (this.options.loop) {
-      const originalCount = this.slides.length;
-      const cloneCount = originalCount;
-      return (index - cloneCount + originalCount) % originalCount;
+      return (index - this.cloneCount + this.originalCount) % this.originalCount;
     }
     
     return Math.min(index, this.slides.length - 1);
   }
 
   /**
-   * Scroll to a specific slide index
+   * Scrolls to a specific slide index.
+   * @param index - The target slide index
+   * @param smooth - Whether to use smooth scrolling
    */
   public scrollTo(index: number, smooth = true): void {
     if (index < 0 || index >= this.slides.length) return;
@@ -510,23 +437,17 @@ export class Carousel {
     let targetScroll: number;
     
     if (this.options.loop) {
-      const originalCount = this.slides.length;
-      const cloneCount = originalCount;
-      targetScroll = (cloneCount + index) * slideWidth;
+      targetScroll = (this.cloneCount + index) * slideWidth;
     } else {
       targetScroll = index * slideWidth;
     }
     
     this.track.style.scrollBehavior = smooth ? 'smooth' : 'auto';
     this.track.scrollLeft = targetScroll;
-    
-    if (!smooth && this.options.loop) {
-      setTimeout(() => this.handleInfiniteScroll(), 10);
-    }
   }
 
   /**
-   * Scroll to the next slide
+   * Scrolls to the next slide.
    */
   public scrollNext(): void {
     const nextIndex = (this.getSelectedIndex() + 1) % this.slides.length;
@@ -534,7 +455,7 @@ export class Carousel {
   }
 
   /**
-   * Scroll to the previous slide
+   * Scrolls to the previous slide.
    */
   public scrollPrev(): void {
     const prevIndex = (this.getSelectedIndex() - 1 + this.slides.length) % this.slides.length;
@@ -542,7 +463,9 @@ export class Carousel {
   }
 
   /**
-   * Add event listener
+   * Adds an event listener.
+   * @param type - The event type
+   * @param callback - The callback function
    */
   public on(type: CarouselEventType, callback: (event: CarouselEvent) => void): void {
     if (!this.listeners.has(type)) {
@@ -552,7 +475,9 @@ export class Carousel {
   }
 
   /**
-   * Remove event listener
+   * Removes an event listener.
+   * @param type - The event type
+   * @param callback - The callback function to remove
    */
   public off(type: CarouselEventType, callback: (event: CarouselEvent) => void): void {
     const callbacks = this.listeners.get(type);
@@ -562,7 +487,8 @@ export class Carousel {
   }
 
   /**
-   * Emit an event
+   * Emits an event to all registered listeners.
+   * @param event - The event to emit
    */
   private emit(event: CarouselEvent): void {
     const callbacks = this.listeners.get(event.type);
@@ -572,52 +498,58 @@ export class Carousel {
   }
 
   /**
-   * Destroy the carousel and cleanup
+   * Destroys the carousel and cleans up all resources.
    */
   public destroy(): void {
+    // Cancel all animations
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
-    }
-    
-    if (this.dragMomentumAnimation) {
-      cancelAnimationFrame(this.dragMomentumAnimation);
     }
     
     if (this.wheelAnimationFrame) {
       cancelAnimationFrame(this.wheelAnimationFrame);
     }
     
+    // Destroy drag handler
+    this.dragHandler?.destroy();
+    
+    // Disconnect resize observer
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
     }
     
+    // Clear listeners and track
     this.listeners.clear();
     this.track.innerHTML = '';
   }
 
   /**
-   * Get the root container element
+   * Gets the root container element.
+   * @returns The container element
    */
   public getRoot(): HTMLElement {
     return this.container;
   }
 
   /**
-   * Get the internal track element
+   * Gets the internal track element.
+   * @returns The track element
    */
   public getTrack(): HTMLElement {
     return this.track;
   }
 
   /**
-   * Get all original slides
+   * Gets all original slides.
+   * @returns Array of slide elements
    */
   public getSlides(): HTMLElement[] {
     return this.slides;
   }
 
   /**
-   * Get current options
+   * Gets the current configuration options.
+   * @returns Copy of current options
    */
   public getOptions(): CarouselOptions {
     return { ...this.options };

@@ -4,9 +4,9 @@
  * Features:
  * - Infinite loop scrolling
  * - Free scroll (no snap/anchor points)
- * - Mouse drag and touch swipe support
+ * - Mouse drag and touch swipe support with momentum
  * - Keyboard navigation
- * - Mouse wheel scrolling
+ * - Mouse wheel scrolling with horizontal support
  * - Accessibility support (ARIA labels, keyboard navigation, focus management)
  * - Customizable slides per view
  * - Smooth momentum-based scrolling
@@ -15,7 +15,10 @@
  * @module CarouselModule
  */
 
+// Main exports
 export { Carousel } from './carousel/Carousel';
+export type { CarouselEvent, CarouselEventType } from './carousel/Carousel';
+
+// Configuration exports
 export { defaultCarouselOptions, easeOutCubic } from './carousel/CarouselOptions';
 export type { CarouselOptions, EasingFunction } from './carousel/CarouselOptions';
-export type { CarouselEvent, CarouselEventType } from './carousel/Carousel';

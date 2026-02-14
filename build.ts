@@ -11,8 +11,8 @@ Bun.build({
   format: 'esm',
   target: 'browser',
   sourcemap: 'linked',
-  minify: false,
-  splitting: false,
+  minify: true,
+  splitting: true,
   // Banner for ESM
   banner: `/**
  * Carousel Module - A production-ready carousel component
