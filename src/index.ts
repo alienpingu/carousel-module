@@ -1,0 +1,21 @@
+/**
+ * Carousel Module - A production-ready carousel component
+ * 
+ * Features:
+ * - Infinite loop scrolling
+ * - Free scroll (no snap/anchor points)
+ * - Mouse drag and touch swipe support
+ * - Keyboard navigation
+ * - Mouse wheel scrolling
+ * - Accessibility support (ARIA labels, keyboard navigation, focus management)
+ * - Customizable slides per view
+ * - Smooth momentum-based scrolling
+ * - Responsive design
+ * 
+ * @module CarouselModule
+ */
+
+export { Carousel } from './carousel/Carousel';
+export { defaultCarouselOptions, easeOutCubic } from './carousel/CarouselOptions';
+export type { CarouselOptions, EasingFunction } from './carousel/CarouselOptions';
+export type { CarouselEvent, CarouselEventType } from './carousel/Carousel';

@@ -1,0 +1,17 @@
+# Bun configuration file
+# See https://bun.com/docs/runtime/bunfig
+
+[serve]
+# Serve static files from the current directory
+static = "."
+
+# Enable hot reloading
+hot = true
+
+# Set the default port
+port = 3000
+
+# Enable bun to automatically transpile and serve TypeScript
+[serve.ts]
+# Enable automatic TypeScript transpilation
+auto = true
