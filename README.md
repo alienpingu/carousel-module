@@ -87,12 +87,8 @@ carousel.destroy();
 # Build
 bun run build
 
-# Dev server
+# Serve example
 bun run dev
-
-# Preview
-bun run preview
-```
 
 ## Project Structure
 
