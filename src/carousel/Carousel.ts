@@ -18,19 +18,23 @@ export class Carousel {
   private animationFrame: number | null = null;
   private isDragging = false;
   private startX = 0;
-  private currentX = 0;
   private scrollStart = 0;
   private listeners: Map<string, Set<(event: CarouselEvent) => void>> = new Map();
   private resizeObserver: ResizeObserver | null = null;
   private wheelVelocity = 0;
   private wheelLastTime = 0;
   private wheelAnimationFrame: number | null = null;
-  private wheelMomentum = 0;
   private wheelDeceleration = 0.95;
   private slideWidth = 0;
   private originalCount = 0;
   private cloneCount = 0;
-  private isLooping = false;
+  
+  // Drag momentum
+  private dragVelocity = 0;
+  private dragLastX = 0;
+  private dragLastTime = 0;
+  private dragMomentumAnimation: number | null = null;
+  private dragDeceleration = 0.92;
 
   constructor(container: HTMLElement, options: Partial<CarouselOptions> = {}) {
     this.container = container;
@@ -189,9 +193,18 @@ export class Carousel {
   private handleDragStart(event: MouseEvent | TouchEvent): void {
     if (!this.options.dragFree) return;
     
+    // Cancel any existing momentum animation
+    if (this.dragMomentumAnimation) {
+      cancelAnimationFrame(this.dragMomentumAnimation);
+      this.dragMomentumAnimation = null;
+    }
+    
     this.isDragging = true;
     this.startX = 'touches' in event ? event.touches[0].clientX : event.clientX;
     this.scrollStart = this.track.scrollLeft;
+    this.dragLastX = this.startX;
+    this.dragLastTime = performance.now();
+    this.dragVelocity = 0;
     this.track.style.cursor = 'grabbing';
     this.track.style.scrollBehavior = 'auto';
   }
@@ -205,9 +218,20 @@ export class Carousel {
     
     event.preventDefault();
     
+    const now = performance.now();
     const x = 'touches' in event ? event.touches[0].clientX : event.clientX;
-    this.currentX = x;
-    const diff = this.startX - this.currentX;
+    const timeDelta = now - this.dragLastTime;
+    
+    // Calculate velocity (pixels per ms)
+    if (timeDelta > 0) {
+      const deltaX = this.dragLastX - x;
+      this.dragVelocity = deltaX / timeDelta * 16; // Normalize to ~60fps
+    }
+    
+    this.dragLastX = x;
+    this.dragLastTime = now;
+    
+    const diff = this.startX - x;
     const newScrollLeft = this.scrollStart + diff;
     
     this.track.scrollLeft = newScrollLeft;
@@ -221,20 +245,64 @@ export class Carousel {
   }
 
   /**
-   * Handle drag end
+   * Handle drag end - with momentum
    */
   private handleDragEnd(): void {
     if (!this.isDragging) return;
     
     this.isDragging = false;
     this.track.style.cursor = 'grab';
-    this.track.style.scrollBehavior = 'smooth';
+    
+    // Start momentum scrolling if velocity is significant
+    if (Math.abs(this.dragVelocity) > 0.5) {
+      this.startDragMomentum();
+    } else {
+      this.track.style.scrollBehavior = 'smooth';
+      this.emit({ type: 'select', index: this.getSelectedIndex() });
+    }
     
     if (this.options.loop) {
       this.handleInfiniteScroll();
     }
+  }
+
+  /**
+   * Start momentum animation after drag release
+   */
+  private startDragMomentum(): void {
+    if (this.dragMomentumAnimation) {
+      cancelAnimationFrame(this.dragMomentumAnimation);
+    }
     
-    this.emit({ type: 'select', index: this.getSelectedIndex() });
+    const animate = (): void => {
+      // Apply deceleration
+      this.dragVelocity *= this.dragDeceleration;
+      
+      // Stop if velocity is too low
+      if (Math.abs(this.dragVelocity) < 0.5) {
+        this.dragMomentumAnimation = null;
+        this.track.style.scrollBehavior = 'smooth';
+        this.emit({ type: 'select', index: this.getSelectedIndex() });
+        return;
+      }
+      
+      // Apply momentum
+      const newScrollLeft = this.track.scrollLeft + this.dragVelocity;
+      this.track.scrollLeft = newScrollLeft;
+      
+      // Handle infinite scroll
+      if (this.options.loop) {
+        this.handleInfiniteScroll();
+      }
+      
+      // Emit scroll event
+      this.emit({ type: 'scroll', index: this.getSelectedIndex() });
+      
+      // Continue animation
+      this.dragMomentumAnimation = requestAnimationFrame(animate);
+    };
+    
+    this.dragMomentumAnimation = requestAnimationFrame(animate);
   }
 
   /**
@@ -255,9 +323,6 @@ export class Carousel {
     if (Math.abs(delta) < 1) {
       delta = event.deltaY;
     }
-    
-    // Apply sensitivity factor
-    const sensitivity = 1.5;
     
     // Calculate velocity with momentum
     if (timeDelta < 50) {
@@ -376,37 +441,6 @@ export class Carousel {
         return;
       }
     }
-  }
-
-  /**
-   * Animate scroll to target position
-   */
-  private animateScroll(targetScroll: number): void {
-    if (this.animationFrame) {
-      cancelAnimationFrame(this.animationFrame);
-    }
-
-    const startScroll = this.track.scrollLeft;
-    const diff = targetScroll - startScroll;
-    const duration = this.options.duration;
-    const easing = this.options.easing;
-    const startTime = performance.now();
-
-    const animate = (currentTime: number): void => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const easedProgress = easing(progress);
-      
-      this.track.scrollLeft = startScroll + diff * easedProgress;
-      
-      if (progress < 1) {
-        this.animationFrame = requestAnimationFrame(animate);
-      } else {
-        this.emit({ type: 'select', index: this.getSelectedIndex() });
-      }
-    };
-
-    this.animationFrame = requestAnimationFrame(animate);
   }
 
   /**
@@ -543,6 +577,14 @@ export class Carousel {
   public destroy(): void {
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
+    }
+    
+    if (this.dragMomentumAnimation) {
+      cancelAnimationFrame(this.dragMomentumAnimation);
+    }
+    
+    if (this.wheelAnimationFrame) {
+      cancelAnimationFrame(this.wheelAnimationFrame);
     }
     
     if (this.resizeObserver) {
