@@ -6,7 +6,6 @@
  * - Free scroll (dragFree mode)
  * - Mouse drag and touch swipe support with momentum
  * - Keyboard navigation
- * - Mouse wheel scrolling with horizontal support
  * - Accessibility support (ARIA labels, keyboard navigation, focus management)
  * - Customizable slides per view
  * - Responsive design with ResizeObserver
@@ -70,11 +69,11 @@ export class Carousel {
   /** ResizeObserver for responsive updates */
   private resizeObserver: ResizeObserver | null = null;
   
-  /** Wheel scroll state */
-  private wheelVelocity = 0;
-  private wheelLastTime = 0;
-  private wheelAnimationFrame: number | null = null;
-  private wheelDeceleration = 0.95;
+  // /** Wheel scroll state */
+  // private wheelVelocity = 0;
+  // private wheelLastTime = 0;
+  // private wheelAnimationFrame: number | null = null;
+  // private wheelDeceleration = 0.95;
   
   /** Cached dimensions */
   private slideWidth = 0;
@@ -233,18 +232,8 @@ export class Carousel {
    * Sets up event listeners for all interactions
    */
   private setupEventListeners(): void {
-    // Initialize drag handler
-    if (this.options.dragFree) {
-      this.dragHandler = new DragHandler(
-        this.track,
-        (index) => this.emit({ type: 'scroll', index }),
-        { enabled: true },
-        () => this.track.scrollLeft,
-        (pos) => { this.track.scrollLeft = pos; },
-        () => this.getSelectedIndex()
-      );
-      
-      // Initialize infinite scroll
+    // Initialize infinite scroll (works with or without dragFree)
+    if (this.options.loop) {
       this.infiniteScroll = new InfiniteScroll(
         () => this.track.scrollLeft,
         (pos) => { this.track.scrollLeft = pos; },
@@ -256,84 +245,48 @@ export class Carousel {
         },
         { enabled: this.options.loop }
       );
+    }
+    
+    // Initialize drag handler
+    if (this.options.dragFree) {
+      this.dragHandler = new DragHandler(
+        this.track,
+        (index) => this.emit({ type: 'scroll', index }),
+        { enabled: true },
+        () => this.track.scrollLeft,
+        (pos) => { this.track.scrollLeft = pos; },
+        () => this.getSelectedIndex()
+      );
       
       // Connect drag handler to infinite scroll
-      this.dragHandler.setLoopCallback(() => {
-        this.infiniteScroll?.handleInfiniteScroll();
-      });
+      if (this.infiniteScroll) {
+        this.dragHandler.setLoopCallback(() => {
+          this.infiniteScroll?.handleInfiniteScroll();
+        });
+      }
     }
 
-    // Wheel scrolling
-    this.track.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
+    // Wheel scrolling - REMOVED
+    // this.track.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
 
     // Keyboard navigation
     this.container.addEventListener('keydown', this.handleKeyDown.bind(this));
+    
+    // Native scroll events for keyboard/wheel (when not using dragFree)
+    this.track.addEventListener('scroll', this.handleNativeScroll.bind(this));
   }
-
+  
   /**
-   * Handles wheel scrolling with horizontal support and momentum.
-   * @param event - The wheel event
+   * Handles native scroll events from keyboard/wheel.
    */
-  private handleWheel(event: WheelEvent): void {
-    event.preventDefault();
-    
-    const now = performance.now();
-    const timeDelta = now - this.wheelLastTime;
-    this.wheelLastTime = now;
-    
-    // Get horizontal delta first, fallback to vertical
-    let delta = event.deltaX;
-    if (Math.abs(delta) < 1) {
-      delta = event.deltaY;
-    }
-    
-    // Calculate velocity with momentum
-    if (timeDelta < 50) {
-      this.wheelVelocity = delta;
-    } else {
-      this.wheelVelocity = delta * 0.5;
-    }
-    
-    // Apply scroll
-    this.track.scrollLeft += this.wheelVelocity;
-    
+  private handleNativeScroll(): void {
     // Handle infinite scroll
     this.infiniteScroll?.handleInfiniteScroll();
     
     // Emit scroll event
     this.emit({ type: 'scroll', index: this.getSelectedIndex() });
-    
-    // Start momentum if velocity is significant
-    if (Math.abs(this.wheelVelocity) > 1) {
-      this.startWheelMomentum();
-    }
   }
 
-  /**
-   * Starts wheel momentum animation for smooth scrolling.
-   */
-  private startWheelMomentum(): void {
-    if (this.wheelAnimationFrame) {
-      cancelAnimationFrame(this.wheelAnimationFrame);
-    }
-    
-    const animate = (): void => {
-      this.wheelVelocity *= this.wheelDeceleration;
-      
-      if (Math.abs(this.wheelVelocity) < 0.5) {
-        this.wheelAnimationFrame = null;
-        this.emit({ type: 'select', index: this.getSelectedIndex() });
-        return;
-      }
-      
-      this.track.scrollLeft += this.wheelVelocity;
-      this.infiniteScroll?.handleInfiniteScroll();
-      
-      this.wheelAnimationFrame = requestAnimationFrame(animate);
-    };
-    
-    this.wheelAnimationFrame = requestAnimationFrame(animate);
-  }
 
   /**
    * Handles keyboard navigation.
@@ -504,10 +457,6 @@ export class Carousel {
     // Cancel all animations
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
-    }
-    
-    if (this.wheelAnimationFrame) {
-      cancelAnimationFrame(this.wheelAnimationFrame);
     }
     
     // Destroy drag handler
