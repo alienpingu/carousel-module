@@ -12,3 +12,8 @@ export type { CarouselEvent, CarouselEventType } from './Carousel';
 export { defaultCarouselOptions, easeOutCubic } from './CarouselOptions';
 export type { CarouselOptions } from './CarouselOptions';
 export type { EasingFunction } from './CarouselOptions';
+
+// Utilities
+export { calculateSlideWidth, getSelectedIndex, calculateTargetScroll } from './utils/scrollUtils';
+export { createTrack, extractSlides, setupContainer, setupTrack, setupSlides, getAllSlides } from './utils/domUtils';
+export { setupAccessibility, setupResizeObserver, updateDimensions, handleKeyDown, EventEmitter } from './utils/eventUtils';

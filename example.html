@@ -146,8 +146,14 @@
 
       // Log initialization
       console.log('Carousel initialized', {
-        slides: carousel.getSlides().length,
-        options: carousel.getOptions()
+        slides: container.children.length,
+        options: {
+          slidesPerView: 3,
+          loop: true,
+          dragFree: true,
+          duration: 300,
+          gap: 20
+        }
       });
 
       // Listen for events

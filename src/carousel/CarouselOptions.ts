@@ -33,6 +33,12 @@ export interface CarouselOptions {
   dragFree: boolean;
 
   /**
+   * Enable mouse wheel scrolling
+   * @default true
+   */
+  wheel: boolean;
+
+  /**
    * Animation duration in milliseconds
    * @default 300
    */
@@ -58,6 +64,7 @@ export const defaultCarouselOptions: CarouselOptions = {
   slidesPerView: 1,
   loop: true,
   dragFree: true,
+  wheel: true,
   duration: 300,
   easing: easeOutCubic,
   gap: 20
