@@ -5,8 +5,7 @@
  * - Infinite loop scrolling
  * - Free scroll (dragFree mode)
  * - Mouse drag and touch swipe support with momentum
- * - Keyboard navigation
- * - Accessibility support (ARIA labels, keyboard navigation, focus management)
+ * - Accessibility support (ARIA labels, focus management)
  * - Customizable slides per view
  * - Responsive design with ResizeObserver
  * 
@@ -199,15 +198,13 @@ export class Carousel {
     // Wheel scrolling - Always add the event listener, but handle it conditionally
     this.track.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
 
-    // Keyboard navigation
-    this.container.addEventListener('keydown', this.handleKeyDown.bind(this));
     
-    // Native scroll events for keyboard/wheel (when not using dragFree)
+    // Native scroll events for wheel (when not using dragFree)
     this.track.addEventListener('scroll', this.handleNativeScroll.bind(this));
   }
   
   /**
-   * Handles native scroll events from keyboard/wheel.
+   * Handles native scroll events from wheel.
    */
   private handleNativeScroll(): void {
     // Handle infinite scroll
@@ -218,15 +215,6 @@ export class Carousel {
   }
 
 
-  /**
-   * Handles keyboard navigation.
-   * @param event - The keyboard event
-   */
-  private handleKeyDown(event: KeyboardEvent): void {
-    const slideWidth = this.calculateSlideWidth() + this.options.gap;
-    
-    handleKeyDown(event, this.track, slideWidth);
-  }
 
   /**
    * Sets up accessibility attributes for the carousel.
@@ -303,14 +291,18 @@ export class Carousel {
    * Scrolls to the next slide.
    */
   public scrollNext(): void {
-    this.scrollTo((this.getSelectedIndex() + 1) % this.slides.length);
+    const currentIndex = this.getSelectedIndex();
+    const nextIndex = (currentIndex + 1) % this.slides.length;
+    this.scrollTo(nextIndex, true);
   }
 
   /**
    * Scrolls to the previous slide.
    */
   public scrollPrev(): void {
-    this.scrollTo((this.getSelectedIndex() - 1 + this.slides.length) % this.slides.length);
+    const currentIndex = this.getSelectedIndex();
+    const prevIndex = (currentIndex - 1 + this.slides.length) % this.slides.length;
+    this.scrollTo(prevIndex, true);
   }
 
   /**

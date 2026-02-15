@@ -9,7 +9,6 @@ A production-ready carousel component with infinite scrolling and momentum-based
 - **Momentum Scrolling**: Smooth momentum after drag release
 - **Mouse Drag**: Click and drag to scroll
 - **Touch Swipe**: Mobile touch support
-- **Keyboard Navigation**: Arrow keys, Home, End
 - **Accessibility**: ARIA labels and keyboard navigation
 - **Responsive**: Adapts to viewport changes
 - **TypeScript**: Full TypeScript support
