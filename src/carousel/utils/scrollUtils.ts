@@ -60,7 +60,9 @@ export function calculateTargetScroll(
   loop: boolean
 ): number {
   if (loop) {
-    return (cloneCount + index) * slideWidth;
+    // For loop, we want to scroll to the actual slide position in the middle section
+    // This ensures consistent behavior across all navigation methods
+    return index * slideWidth;
   } else {
     return index * slideWidth;
   }

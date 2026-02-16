@@ -51,6 +51,12 @@
       min-height: 300px;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
       cursor: grab;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .carousel__slide:active {
+      cursor: grabbing;
     }
 
     /* .carousel__slide:active {
@@ -112,7 +118,7 @@
   </div>
 
   <div class="info">
-    <p>Drag, swipe, or use mouse wheel to navigate</p>
+    <p>Drag, swipe, or use mouse wheel to navigate • Use Tab/Shift+Tab to navigate slides</p>
   </div>
 
   <!-- Carousel Module - Loads bundled JavaScript -->
@@ -136,6 +142,14 @@
         dragFree: true,
         duration: 300,
         gap: 20
+      });
+
+      // Make slides focusable for tab navigation
+      const slides = container.querySelectorAll('.slide');
+      slides.forEach((slide, index) => {
+        slide.tabIndex = 0; // Make slide focusable
+        slide.setAttribute('role', 'button');
+        slide.setAttribute('aria-label', `Slide ${index + 1}`);
       });
 
       // Log initialization

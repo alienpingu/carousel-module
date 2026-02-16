@@ -5,6 +5,7 @@
  * - Infinite loop scrolling
  * - Free scroll (dragFree mode)
  * - Mouse drag and touch swipe support with momentum
+ * - Tab navigation for keyboard accessibility
  * - Accessibility support (ARIA labels, focus management)
  * - Customizable slides per view
  * - Responsive design with ResizeObserver
@@ -17,7 +18,7 @@ import { DragHandler } from './DragHandler';
 import { InfiniteScroll } from './InfiniteScroll';
 import { calculateSlideWidth, getSelectedIndex, calculateTargetScroll } from './utils/scrollUtils';
 import { createTrack, extractSlides, setupContainer, setupTrack, setupSlides, getAllSlides } from './utils/domUtils';
-import { setupAccessibility, setupResizeObserver, updateDimensions, handleKeyDown } from './utils/eventUtils';
+import { setupAccessibility, setupResizeObserver, updateDimensions } from './utils/eventUtils';
 
 /** Event types emitted by the carousel */
 export type CarouselEventType = 'select' | 'scroll';
@@ -95,7 +96,7 @@ export class Carousel {
     
     // Initialize loop parameters
     this.originalCount = this.slides.length;
-    this.cloneCount = this.originalCount;
+    this.cloneCount = this.options.loop ? this.originalCount : 0;
     this.slideWidth = this.calculateSlideWidth();
     
     this.setupContainer();
@@ -201,6 +202,12 @@ export class Carousel {
     
     // Native scroll events for wheel (when not using dragFree)
     this.track.addEventListener('scroll', this.handleNativeScroll.bind(this));
+    
+    // Tab navigation for keyboard accessibility
+    this.track.addEventListener('keydown', this.handleTabNavigation.bind(this));
+    
+    // Arrow key navigation for loop
+    this.track.addEventListener('keydown', this.handleArrowNavigation.bind(this));
   }
   
   /**
@@ -285,6 +292,11 @@ export class Carousel {
     
     this.track.style.scrollBehavior = smooth ? 'smooth' : 'auto';
     this.track.scrollLeft = targetScroll;
+    
+    // Handle infinite scroll jump if needed
+    if (this.options.loop && this.infiniteScroll) {
+      this.infiniteScroll.handleInfiniteScroll();
+    }
   }
 
   /**
@@ -348,6 +360,70 @@ export class Carousel {
     this.resizeObserver?.disconnect();
     this.listeners.clear();
     this.track.innerHTML = '';
+  }
+
+  /**
+   * Handles tab navigation for keyboard accessibility.
+   * @param event - The keyboard event
+   */
+  private handleTabNavigation(event: KeyboardEvent): void {
+    if (event.key !== 'Tab') return;
+
+    // Prevent default tab behavior to maintain focus control
+    event.preventDefault();
+    
+    // Get all focusable slides (only original slides, not clones)
+    const slides = this.getAllSlides();
+    const originalSlides = slides.slice(this.cloneCount, this.cloneCount + this.originalCount);
+    const focusableSlides = originalSlides.filter(slide => slide.tabIndex !== -1);
+    
+    if (focusableSlides.length === 0) return;
+
+    // Find currently focused slide
+    const currentFocus = document.activeElement as HTMLElement;
+    const currentIndex = focusableSlides.indexOf(currentFocus);
+    
+    // Calculate next slide index based on Shift key
+    let nextIndex: number;
+    if (event.shiftKey) {
+      // Shift+Tab: move to previous slide
+      nextIndex = currentIndex <= 0 ? -1 : currentIndex - 1;
+    } else {
+      // Tab: move to next slide
+      nextIndex = currentIndex >= focusableSlides.length - 1 ? -1 : currentIndex + 1;
+    }
+    
+    // If at boundaries, let default tab behavior handle it
+    if (nextIndex === -1) {
+      event.stopPropagation();
+      return;
+    }
+    
+    // Focus the next slide
+    const nextSlide = focusableSlides[nextIndex];
+    nextSlide.focus();
+    
+    // Scroll to the focused slide with instant navigation
+    this.scrollTo(nextIndex, false);
+  }
+
+  /**
+   * Handles arrow key navigation for loop.
+   * @param event - The keyboard event
+   */
+  private handleArrowNavigation(event: KeyboardEvent): void {
+    if (!this.options.loop) return;
+    
+    switch (event.key) {
+      case 'ArrowLeft':
+        event.preventDefault();
+        this.scrollPrev();
+        break;
+      case 'ArrowRight':
+        event.preventDefault();
+        this.scrollNext();
+        break;
+    }
   }
 
   /**
