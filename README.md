@@ -87,7 +87,7 @@ bun run build
 
 # Serve example
 bun run dev
-
+```
 ## Project Structure
 
 ```
